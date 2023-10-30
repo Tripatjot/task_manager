@@ -4,129 +4,114 @@ from rest_framework.response import Response
 from rest_framework import status
 from .models import Master
 from datetime import datetime
+from django.db.models import Q
+from datetime import datetime, timedelta
+
+def create_response(valid, data, message, status_code):
+    return Response({
+        'status': 'OK' if valid is "True" else "NOK",
+        'valid': valid,
+        'result': {'data': data, 'message': message}
+    }, status=status_code)
+
+def validate_date(date_string):
+    try:
+        datetime.strptime(date_string, '%Y-%m-%d')
+        return True
+    except ValueError:
+        return False
 
 class CreateTask(APIView):
     def post (self, request):
-        result={}
-        result['status']="NOK"
-        result['valid']=False
-        result['result']={"message":"Unauthorized access","data":[]}
-        #------------------------------------------------------------------------------------
         try:
-            record_object = Master()
-            record_object.save()
-            id = record_object.id 
-            record_object.unique_id = f'task{id + 100000:07d}'
-            record_object.description = request.data['description']
-            record_object.title = request.data['title']
-            record_object.created_timestamp = datetime.today()
-            record_object.save()
+            record_object = Master.objects.create(
+                unique_id=f'task{(Master.objects.count()+1) + 100000:07d}',
+                description=request.data['description'],
+                title=request.data['title'],
+                created_timestamp=datetime.today(),
+            )
+            query_set = Master.objects.filter(id = record_object.id).values()
+            print(query_set)
 
-            query_set = Master.objects.filter(id = id).values()
-
-            result['status']            ="OK"
-            result['valid']             = True
-            result['result']['message'] = "Created Successfully"
-            result['result']['data']    = query_set
-            return Response(result, status=status.HTTP_201_CREATED)
+            return create_response(("True" if record_object is 1 else "False"), query_set, "Created Successfully", status.HTTP_200_OK)
         except KeyError as e :
-            result['result']['message'] = "Error due to " + str(e)
-            return Response(result, status=status.HTTP_201_CREATED)
+            create_response(False, [], f"Error due to {str(e)}", status.HTTP_400_BAD_REQUEST)
         except Exception as e :
-            result['result']['message'] = "Error due to " + str(e)
-            return Response(result, status=status.HTTP_201_CREATED)
+            return create_response(False, [], f"Error due to {str(e)}", status.HTTP_500_INTERNAL_SERVER_ERROR)
       
 class UpdateTask(APIView):
     def post (self, request):
-        result={}
-        result['status']="NOK"
-        result['valid']=False
-        result['result']={"message":"Unauthorized access","data":[]}
-        #------------------------------------------------------------------------------------
         try:
             inp_id      = request.data['id']
             task        = Master.objects.filter(id = inp_id).first()
             if task is not None:
                 title       = request.data.get('title', task.title)
                 description = request.data.get('description', task.description)
-                print(title, description)
 
-                query_set = Master.objects.filter(id = inp_id).update(title = title, description = description)
+                query_set = Master.objects.filter(id = inp_id).update(title = title, description = description, updated_timestamp = datetime.today())
 
-                result['status']            = "OK"
-                result['valid']             = True
-                result['result']['data']    = query_set
-                result['result']['message'] = "Updated Successfully"
-                return Response(result, status=status.HTTP_201_CREATED)
+                return create_response(("True" if query_set is 1 else "False"), [], "Updated Successfully", status.HTTP_200_OK)
             else:
-                result['result']['message'] = "Task with the specified ID not found."
+                return create_response(False, [], "Task with the specified ID not found.", status.HTTP_400_BAD_REQUEST)
         except KeyError as e :
-            result['result']['message'] = "Error due to " + str(e)
-            return Response(result, status=status.HTTP_201_CREATED)
+            return create_response(False, [], f"Error due to {str(e)}", status.HTTP_400_BAD_REQUEST)
         except Exception as e :
-            result['result']['message'] = "Error due to " + str(e)
-            return Response(result, status=status.HTTP_201_CREATED)
+            return create_response(False, [], f"Error due to {str(e)}", status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 class DeleteTask(APIView):
     def post (self, request):
-        result={}
-        result['status']="NOK"
-        result['valid']=False
-        result['result']={"message":"Unauthorized access","data":[]}
-        #------------------------------------------------------------------------------------
         try:
             inp_id    = request.data['id']
-            query_set = Master.objects.filter(id = inp_id).update(status = 0)
+            query_set = Master.objects.filter(id = inp_id).update(status = 0, removed_timestamp = datetime.today())
             
-            result['status']            = "OK"
-            result['valid']             = True
-            result['result']['data']    =  query_set
-            result['result']['message'] = "Updated Successfully"
-            return Response(result, status=status.HTTP_201_CREATED)
+            return create_response(("True" if query_set is 1 else "False"), [], "Updated Successfully", status.HTTP_200_OK)
         except KeyError as e :
-            result['result']['message'] = "Error due to " + str(e)
-            return Response(result, status=status.HTTP_201_CREATED)
+            return create_response(False, [], f"Error due to {str(e)}", status.HTTP_400_BAD_REQUEST)
         except Exception as e :
-            result['result']['message'] = "Error due to " + str(e)
-            return Response(result, status=status.HTTP_201_CREATED)
-    
+            return create_response(False, [], f"Error due to {str(e)}", status.HTTP_500_INTERNAL_SERVER_ERROR)
+ 
 class GetTask(APIView): 
     def get (self, request):
-        result={}
-        result['status']="NOK"
-        result['valid']=False
-        result['result']={"message":"Unauthorized access","data":[]}
-        #------------------------------------------------------------------------------------
         try:
             query_set = Master.objects.all()
-
-            result['result']['data']    =  query_set
-            result['result']['message'] = "Fetchec Successfully"
-            return Response(result, status=status.HTTP_201_CREATED)
+            return create_response(True, query_set, "Fetchecd Successfully", status.HTTP_201_CREATED)
         except Exception as e :
-            result['result']['message'] = "Error due to " + str(e)
-            return Response(result, status=status.HTTP_201_CREATED)
-    
+            return create_response(False, [], "Error due to " + str(e), status.HTTP_400_BAD_REQUEST)
+           
 class ChangeStatusTask(APIView):
     def post (self, request):
-        result={}
-        result['status']="NOK"
-        result['valid']=False
-        result['result']={"message":"Unauthorized access","data":[]}
-        #------------------------------------------------------------------------------------
         try:
             inp_id    = request.data['id']
             query_set = Master.objects.filter(id = inp_id, status = 1).update(is_completed = 1)
-            
-            result['status']            = "OK"
-            result['valid']             = True
-            result['result']['data']    = query_set
-            result['result']['message'] = "Updated Successfully"
-            return Response(result, status=status.HTTP_201_CREATED)
+
+            return create_response(("True" if query_set is 1 else "False"), [], ("Updated Successfully" if query_set is 1 else "Error Updating"), status.HTTP_201_CREATED)
         except KeyError as e :
-            result['result']['message'] = "Error due to " + str(e)
-            return Response(result, status=status.HTTP_201_CREATED)
+            return create_response(False, [], f"Error due to {str(e)}", status.HTTP_400_BAD_REQUEST)
         except Exception as e :
-            result['result']['message'] = "Error due to " + str(e)
-            return Response(result, status=status.HTTP_201_CREATED)
+            return create_response(False, [], f"Error due to {str(e)}", status.HTTP_500_INTERNAL_SERVER_ERROR)
         
+class TaskListing (APIView):
+    def post (self, request):
+        try:
+            search_string = request.data.get('search', '')
+            start_date    = request.data.get('start_date', '2023-01-01')
+            end_date      = request.data.get('end_date', (datetime.today()).strftime('%Y-%m-%d'))
+            if not validate_date(start_date):
+                return create_response(False, [], "Invalid start date format, valid format yyyy-mm-dd", status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+            if not validate_date(end_date):
+                return create_response(False, [], "Invalid start date format, valid format yyyy-mm-dd", status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+            if end_date < start_date:
+                return create_response(False, [], "end date should not be less than start date", status.HTTP_422_UNPROCESSABLE_ENTITY)
+
+            end_date = (datetime.strptime(end_date, '%Y-%m-%d') + timedelta(days=1)).strftime('%Y-%m-%d')
+
+            filter_object = Q(title__icontains=search_string) if search_string else Q()
+            filter_object = Q(created_timestamp__range=(start_date, end_date))
+
+            queryset = Master.objects.filter(filter_object, status = 1).values()
+            return create_response(True, queryset, "Updated Successfully", status.HTTP_201_CREATED)
+
+        except Exception as e :
+            return create_response( False, [], "Error due to " + str(e), status.HTTP_500_INTERNAL_SERVER_ERROR)
